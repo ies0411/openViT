@@ -1,11 +1,7 @@
-import numpy as np
-import torch
-import torch.utils.data
 import torchvision
-import torchvision.transforms as transforms
 from torch.utils.data import Dataset
 
-from ..dataset import DatasetTemplate
+from ..utils.data_processing import generate_patch
 
 
 class Cifa10Dataset(Dataset):
@@ -13,6 +9,7 @@ class Cifa10Dataset(Dataset):
         self.patch_size = dataset_cfg.patch_size
         self.image_size = dataset_cfg.image_size
         self.batch_size = dataset_cfg.batch_size
+        self.cfg = dataset_cfg
         self.train_set = None
         self.test_set = None
         self.class_names = class_names
@@ -39,7 +36,14 @@ class Cifa10Dataset(Dataset):
         return self.train_set.shape[0]
 
     def __getitem__(self, index):
-        input_data = self.train_set[index]
-        label = self.labels[index]
+        if self.training:
+            input_data = self.train_set[index]
+            label = self.labels[index]
+        else:
+            input_data = self.test_set[index]
+            label = None
+
+        if self.cfg.PATCH:
+            generate_patch(self.cfg.PATCH.PATCH_SIZE, input_data)
 
         return input_data, label
