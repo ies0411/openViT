@@ -3,7 +3,8 @@ from functools import partial
 from torch.utils.data import DataLoader
 
 from ..utils.utils import worker_init_fn
-from . import Cifa10Dataset, ImagenetDataset
+from .cifar10.cifar10_dataset import Cifa10Dataset
+from .imagenet import ImagenetDataset
 
 __all__ = {'Cifa10Dataset': Cifa10Dataset, 'ImagenetDataset': ImagenetDataset}
 

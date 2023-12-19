@@ -7,10 +7,6 @@ from template import DetectorTemplate
 class ViT(DetectorTemplate):
     def __init__(self, model_cfg, num_class, dataset):
         super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset)
-        # self.cfg = model_cfg
-        # self.num_class = num_class
-        # self.dataset = dataset
-
         self.module_list = self.build_networks()
 
         # self.embedding = EmbeddingMudule(

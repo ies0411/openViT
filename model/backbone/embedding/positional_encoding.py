@@ -1,6 +1,3 @@
-import torch
-import torch.nn as nn
-
 # reference : https://github.com/hyunwoongko/transformer
 
 class TrigonometricalPositionalEncoding(nn.Module):

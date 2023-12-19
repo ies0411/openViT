@@ -44,6 +44,6 @@ class Cifa10Dataset(Dataset):
             label = None
 
         if self.cfg.PATCH:
-            generate_patch(self.cfg.PATCH.PATCH_SIZE, input_data)
+            patched_input_data = generate_patch(self.cfg.PATCH.PATCH_SIZE, input_data)
 
-        return input_data, label
+        return patched_input_data, label
