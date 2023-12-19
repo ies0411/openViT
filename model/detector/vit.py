@@ -20,23 +20,6 @@ class ViT(DetectorTemplate):
 
         # self.class_names = dataset.class_names
         # self.register_buffer('global_step', torch.LongTensor(1).zero_())
-    def build_networks(self):
-        model_info_dict = {
-            'module_list': [],
-            'num_rawpoint_features': self.dataset.point_feature_encoder.num_point_features,
-            'num_point_features': self.dataset.point_feature_encoder.num_point_features,
-            'grid_size': self.dataset.grid_size,
-            'point_cloud_range': self.dataset.point_cloud_range,
-            'voxel_size': self.dataset.voxel_size,
-            'depth_downsample_factor': self.dataset.depth_downsample_factor
-        }
-        for module_name in self.module_topology:
-            module, model_info_dict = getattr(self, 'build_%s' % module_name)(
-                model_info_dict=model_info_dict
-            )
-            self.add_module(module_name, module)
-        return model_info_dict['module_list']
-
 
     def forward(self, batch_dict):
         for cur_module in self.module_list:
@@ -53,88 +36,36 @@ class ViT(DetectorTemplate):
             pred_dicts, recall_dicts = self.post_processing(batch_dict)
             return pred_dicts, recall_dicts
 
-# class SECONDNet(Detector3DTemplate):
-#     def __init__(self, model_cfg, num_class, dataset):
-#         super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset)
-#         self.module_list = self.build_networks()
-
-#     def build_networks(self):
-#         model_info_dict = {
-#             'module_list': [],
-#             'num_rawpoint_features': self.dataset.point_feature_encoder.num_point_features,
-#             'num_point_features': self.dataset.point_feature_encoder.num_point_features,
-#             'grid_size': self.dataset.grid_size,
-#             'point_cloud_range': self.dataset.point_cloud_range,
-#             'voxel_size': self.dataset.voxel_size,
-#             'depth_downsample_factor': self.dataset.depth_downsample_factor
-#         }
-#         for module_name in self.module_topology:
-#             module, model_info_dict = getattr(self, 'build_%s' % module_name)(
-#                 model_info_dict=model_info_dict
-#             )
-#             self.add_module(module_name, module)
-#         return model_info_dict['module_list']
-
-#     def forward(self, batch_dict):
-#         for cur_module in self.module_list:
-#             batch_dict = cur_module(batch_dict)
-
-#         if self.training:
-#             loss, tb_dict, disp_dict = self.get_training_loss()
-
-#             ret_dict = {
-#                 'loss': loss
-#             }
-#             return ret_dict, tb_dict, disp_dict
-#         else:
-#             pred_dicts, recall_dicts = self.post_processing(batch_dict)
-#             return pred_dicts, recall_dicts
-
-#     def get_training_loss(self):
-#         disp_dict = {}
-
-#         loss_rpn, tb_dict = self.dense_head.get_loss()
-#         tb_dict = {
-#             'loss_rpn': loss_rpn.item(),
-#             **tb_dict
-#         }
-
-#         loss = loss_rpn
-#         return loss, tb_dict, disp_dict
 
 
+# # reference : https://github.com/hyunwoongko/transformer
+# class PositionalEncoding(nn.Module):
+#     def __init__(self, d_model, max_len=5000, dropout=0.1):
+#         # embedding vector dimension = positionalending dimension
+#         super(PositionalEncoding, self).__init__()
+#         self.dropout = nn.Dropout(p=dropout)
+#         # same size with input matrix (for adding with input matrix)
+#         self.encoding = torch.zeros(max_len, d_model)
+#         self.encoding.requires_grad = False  # we don't need to compute gradient
 
+#         pos = torch.arange(0, max_len)
+#         pos = pos.float().unsqueeze(dim=1)
+#         # 1D => 2D unsqueeze to represent word's position
 
+#         _2i = torch.arange(0, d_model, step=2).float()
+#         # 'i' means index of d_model (e.g. embedding size = 50, 'i' = [0,50])
+#         # "step=2" means 'i' multiplied with two (same with 2 * i)
 
+#         self.encoding[:, 0::2] = torch.sin(pos / (10000 ** (_2i / d_model)))
+#         self.encoding[:, 1::2] = torch.cos(pos / (10000 ** (_2i / d_model)))
+#         # compute positional encoding to consider positional information of words
 
-# reference : https://github.com/hyunwoongko/transformer
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=5000, dropout=0.1):
-        # embedding vector dimension = positionalending dimension
-        super(PositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
-        # same size with input matrix (for adding with input matrix)
-        self.encoding = torch.zeros(max_len, d_model)
-        self.encoding.requires_grad = False  # we don't need to compute gradient
-
-        pos = torch.arange(0, max_len)
-        pos = pos.float().unsqueeze(dim=1)
-        # 1D => 2D unsqueeze to represent word's position
-
-        _2i = torch.arange(0, d_model, step=2).float()
-        # 'i' means index of d_model (e.g. embedding size = 50, 'i' = [0,50])
-        # "step=2" means 'i' multiplied with two (same with 2 * i)
-
-        self.encoding[:, 0::2] = torch.sin(pos / (10000 ** (_2i / d_model)))
-        self.encoding[:, 1::2] = torch.cos(pos / (10000 ** (_2i / d_model)))
-        # compute positional encoding to consider positional information of words
-
-    def forward(self, x):
-        """
-        seq_len, batch_size,embedding_dim
-        """
-        return x + self.encoding[: x.size(0)]
-        # return self.dropout(x)
+#     def forward(self, x):
+#         """
+#         seq_len, batch_size,embedding_dim
+#         """
+#         return x + self.encoding[: x.size(0)]
+#         # return self.dropout(x)
 
 
 class EmbeddingMudule(
