@@ -1,5 +1,9 @@
+import torch
+import torch.nn as nn
+
+
 class MultiheadedSelfAttention(nn.Module):
-    def __init__(self, latent_vector_dim, head_num, drop_rate):
+    def __init__(self, model_cfg):
         super().__init__()
         self.latent_vector_dim = latent_vector_dim
         self.head_num = head_num
@@ -9,7 +13,8 @@ class MultiheadedSelfAttention(nn.Module):
         self.dropout = nn.Dropout(drop_rate)
 
     def forward(self, x):
-        q = self.query(x)  # toal head에 한 query
+        # x: batch_size, patch개수 + 1, embedding_dimension
+        q = self.query(x)  # q : batch_size, patch개수 + 1, embedding_dimension
         k = self.key(x)  # toal head에 한 key
         v = self.value(x)  # toal head에 한 value
         q = q.view(x.size(0), self.head_num, -1, self.head_dim)
