@@ -28,3 +28,5 @@ class MultiheadedSelfAttention(nn.Module):
         attention = torch.softmax(q @ k / self.scale, dim=-1) # batch_size, head_number, patch개수 + 1, patch개수 + 1
         x = self.dropout(attention) @ v # batch_size, num_heads,  patch개수 + 1,  patch개수 + 1 x  B, num_heads, patch개수 + 1, head_dimension => B, num_heads, patch개수 + 1, head_dimension
         x = x.permute(0,2,1,3).reshape(batch_size, -1, self.embedding_dimension) #batch_size, patch개수 + 1, num_heads, head_dimension -> B, patch개수 + 1 ,embedding_dimension(num_heads x head_dimension)
+
+        return x, attention

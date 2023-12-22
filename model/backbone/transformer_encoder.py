@@ -5,31 +5,30 @@ import torch.nn as nn
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, latent_vector_dim, head_num, mlp_hidden_dim, drop_rate=0.1):
+    def __init__(self, model_cfg):
         super().__init__()
-        self.ln1 = nn.LayerNorm(latent_vector_dim)
-        self.ln2 = nn.LayerNorm(latent_vector_dim)
-        self.msa = MultiheadedSelfAttention(
-            latent_vector_dim=latent_vector_dim,
-            head_num=head_num,
-            drop_rate=drop_rate,
-        )
-        self.dropout = nn.Dropout(drop_rate)
-        self.mlp = nn.Sequential(
-            nn.Linear(latent_vec_dim, mlp_hidden_dim),
+        self.embedding_dimension = model_cfg.embedding_dimension
+        self.hidden_dimension = model_cfg.hidden_dimension
+        self.drop_rate = model_cfg.drop_rate
+        self.norm_1 = nn.LayerNorm(self.embedding_dimension)
+        self.norm_2 = nn.LayerNorm(self.embedding_dimension)
+        self.msa = MultiheadedSelfAttention(model_cfg)
+        self.dropout = nn.Dropout(self.drop_rate)
+        self.mlp_module = nn.Sequential(
+            nn.Linear(self.embedding_dimension, self.hidden_dimension),
             nn.GELU(),
-            nn.Dropout(drop_rate),
-            nn.Linear(mlp_hidden_dim, latent_vec_dim),
-            nn.Dropout(drop_rate),
+            nn.Dropout(self.drop_rate),
+            nn.Linear(self.hidden_dimension, self.embedding_dimension),
+            nn.Dropout(self.drop_rate),
         )
 
     def forward(self, x):
-        z = self.ln1(x)
-        z, att = self.msa(z)
+        z = self.norm_1(x) # batch_size, patch개수 + 1, embedding_dimension
+        z, att = self.msa(z)  #z : batch_size, patch개수 + 1 ,embedding_dimension(head_number x head_dimension)
         z = self.dropout(z)
         x = x + z
-        z = self.ln2(x)
-        z = self.mlp(z)
-        x = x + z
+        z = self.norm_2(x)
+        z = self.mlp_module(z)
+        x = x + z  #x : batch_size, patch개수 + 1 ,embedding_dimension(head_number x head_dimension)
 
         return x, att
