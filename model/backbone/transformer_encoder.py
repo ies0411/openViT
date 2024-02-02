@@ -1,5 +1,3 @@
-
-
 import torch
 import torch.nn as nn
 
@@ -23,12 +21,16 @@ class TransformerEncoder(nn.Module):
         )
 
     def forward(self, x):
-        z = self.norm_1(x) # batch_size, patch개수 + 1, embedding_dimension
-        z, att = self.msa(z)  #z : batch_size, patch개수 + 1 ,embedding_dimension(head_number x head_dimension)
+        z = self.norm_1(x)  # batch_size, patch개수 + 1, embedding_dimension
+        z, att = self.msa(
+            z
+        )  # z : batch_size, patch개수 + 1 ,embedding_dimension(head_number x head_dimension)
         z = self.dropout(z)
         x = x + z
         z = self.norm_2(x)
         z = self.mlp_module(z)
-        x = x + z  #x : batch_size, patch개수 + 1 ,embedding_dimension(head_number x head_dimension)
+        x = (
+            x + z
+        )  # x : batch_size, patch개수 + 1 ,embedding_dimension(head_number x head_dimension)
 
         return x, att

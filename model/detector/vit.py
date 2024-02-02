@@ -24,14 +24,11 @@ class ViT(DetectorTemplate):
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
 
-            ret_dict = {
-                'loss': loss
-            }
+            ret_dict = {"loss": loss}
             return ret_dict, tb_dict, disp_dict
         else:
             pred_dicts, recall_dicts = self.post_processing(batch_dict)
             return pred_dicts, recall_dicts
-
 
 
 # # reference : https://github.com/hyunwoongko/transformer
@@ -64,51 +61,71 @@ class ViT(DetectorTemplate):
 #         # return self.dropout(x)
 
 
-class EmbeddingMudule(
-    nn.Module
-):  # patch_numx(patchxpatchximage_channel)  -> patch_num x D(latent_vector_dimentsion)
+class EmbeddingMudule(nn.Module):
     def __init__(
-        self, patch_vec_size, patches_num, latent_vector_dimension, drop_rate=0.1
+        self, patch_vector_size, patches_num, latent_vector_dimension, drop_rate=0.1
     ):
         super(EmbeddingMudule, self).__init__()
-        self.linear_proj = nn.Linear(patch_vec_size, latent_vector_dimension)
+        self.linear_projection = nn.Linear(patch_vector_size, latent_vector_dimension)
         self.class_token = nn.Parameter(torch.randn(1, latent_vector_dimension))
-        self.pos_embedding = PositionalEncoding(latent_vector_dimension)
+        self.positional_emdedding = nn.Parameter(
+            torch.randn(1, patches_num + 1, latent_vector_dimension)
+        )
         self.dropout = nn.Dropout(drop_rate)
 
     def forward(self, x):
+        # x : B, patch개수, 3 x patch_w x patch_h
+        # repeat == expand
+        # linear_proj : B, patch개수, latent_vector_dimension,  cls_token : B, 1, 1
+        # B, patch개수 + 1, latent_vector_dimension
         batch_size = x.size(0)
         x = torch.cat(
-            [self.cls_token.repeat(batch_size, 1, 1), self.linear_proj(x)], dim=1
+            [self.class_token.repeat(batch_size, 1, 1), self.linear_projection(x)],
+            dim=1,
         )
-        x += self.pos_embedding
+        # B, patch개수 + 1, latent_vector_dimension
+        x += self.positional_emdedding
         x = self.dropout(x)
         return x
 
 
 class MultiheadedSelfAttention(nn.Module):
-    def __init__(self, latent_vector_dim, head_num, drop_rate):
+    def __init__(self, latent_vector_dim, head_num, drop_rate, device):
         super().__init__()
-        self.latent_vector_dim = latent_vector_dim
+        self.device = device
         self.head_num = head_num
+        self.latent_vector_dim = latent_vector_dim
+        self.head_dim = int(latent_vector_dim / head_num)
         self.query = nn.Linear(latent_vector_dim, latent_vector_dim)
         self.key = nn.Linear(latent_vector_dim, latent_vector_dim)
         self.value = nn.Linear(latent_vector_dim, latent_vector_dim)
         self.dropout = nn.Dropout(drop_rate)
 
     def forward(self, x):
-        q = self.query(x)  # toal head에 한 query
-        k = self.key(x)  # toal head에 한 key
-        v = self.value(x)  # toal head에 한 value
-        q = q.view(x.size(0), self.head_num, -1, self.head_dim)
-        k = k.view(x.size(0), self.head_num, self.head_dim, -1)
-        v = v.view(x.size(0), self.head_num, -1, self.head_dim)
-        att = torch.softmax(
-            q @ k / torch.sqrt(self.head_dim * torch.ones(1)).to(device), dim=-1
-        )
+        # B, patch개수 + 1, latent_vector_dim
         batch_size = x.size(0)
-        x = self.dropout(attention) @ v
-        x = x.reshape(batch_size, -1, self.latent_vector_dim)
+        q = self.query(x)  # q : B, patch개수 + 1, latent_vector_dim
+        k = self.key(x)  # k : B, patch개수 + 1, latent_vector_dim
+        v = self.value(x)  # v : B, patch개수 + 1, latent_vector_dim
+        q = q.view(batch_size, -1, self.head_num, self.head_dim).permute(
+            0, 2, 1, 3
+        )  # B, patch개수 + 1 ,head number, head dimension -> B, head_number, patch개수 + 1, head_dimension(int(latent_vector_dim / num_heads)
+        k = k.view(batch_size, -1, self.head_num, self.head_dim).permute(
+            0, 2, 3, 1
+        )  # B, patch개수 + 1 ,head number, head dimension -> B, head_number, head_dimension(int(latent_vector_dim / num_heads), patch개수 + 1
+        v = v.view(batch_size, -1, self.head_num, self.head_dim).permute(
+            0, 2, 1, 3
+        )  # B, patch개수 + 1 ,head number, head dimension -> B, head_number, patch개수 + 1, head_dimension(int(latent_vector_dim / num_heads)
+        attention = torch.softmax(
+            q @ k / torch.sqrt(self.head_dim * torch.ones(1)), dim=-1
+        )  # B, head_number, patch개수 + 1, patch개수 + 1
+        x = (
+            self.dropout(attention) @ v
+        )  # B, head_number,  patch개수 + 1,  patch개수 + 1 x  B, head_number, patch개수 + 1, head_dimension => B, head_number, patch개수 + 1, head_dimension
+        x = x.permute(0, 2, 1, 3).reshape(
+            batch_size, -1, self.latent_vector_dim
+        )  # B, patch개수 + 1, head_number, head_dimension -> B, patch개수 + 1 ,latent_vector_dim(head_number x head_dimension)
+        return x, attention
 
 
 class TransformerEncoder(nn.Module):
@@ -123,23 +140,26 @@ class TransformerEncoder(nn.Module):
         )
         self.dropout = nn.Dropout(drop_rate)
         self.mlp = nn.Sequential(
-            nn.Linear(latent_vec_dim, mlp_hidden_dim),
+            nn.Linear(latent_vector_dim, mlp_hidden_dim),
             nn.GELU(),
             nn.Dropout(drop_rate),
-            nn.Linear(mlp_hidden_dim, latent_vec_dim),
+            nn.Linear(mlp_hidden_dim, latent_vector_dim),
             nn.Dropout(drop_rate),
         )
 
     def forward(self, x):
-        z = self.ln1(x)
-        z, att = self.msa(z)
+        # B, patch개수 + 1, latent_vector_dim
+        z = self.ln1(x)  # B, patch개수 + 1, latent_vector_dim
+        z, attention_vector = self.msa(
+            z
+        )  # z : B, patch개수 + 1 ,latent_vector_dim(head_number x head_dimension)
         z = self.dropout(z)
         x = x + z
         z = self.ln2(x)
         z = self.mlp(z)
-        x = x + z
+        x = x + z  # B, patch개수 + 1 ,latent_vector_dim
 
-        return x, att
+        return x, attention_vector
 
 
 class ViT(nn.Module):
